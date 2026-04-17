@@ -196,10 +196,4 @@ class AudioPlayer:
         self.paused = not self.paused
 
     def set_volume(self, percent):
-        self.volume = max(0.0, min(2.0, percent / 100.0))        self.paused  = False
-
-    def toggle_pause(self):
-        self.paused = not self.paused
-
-    def set_volume(self, percent):
         self.volume = max(0.0, min(2.0, percent / 100.0))
