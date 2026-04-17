@@ -5,7 +5,7 @@ from tkinter import messagebox
 import webbrowser
 
 from src.theme import COLORS, FONTS, make_button
-from src.audio import AUDIO_OK, AudioPlayer, find_vbcable, get_device_info
+from src.audio import AUDIO_OK, AudioPlayer, find_vbcable, get_output_devices
 from src.vcam import VCamEngine
 from src.installer import prompt_install_vbcable
 from src.ui.page_home     import HomePage
@@ -15,6 +15,7 @@ from src.ui.page_guide    import GuidePage
 
 
 CONFIG_FILE = "vc_config.json"
+TICK_MS     = 100
 
 
 class App(tk.Tk):
@@ -37,7 +38,7 @@ class App(tk.Tk):
         self._nav_refs     = {}
 
         self._build_ui()
-        self.after(200, self._auto_setup)
+        self.after(50, self._auto_setup)
         self._tick()
 
     def _load_config(self):
@@ -66,17 +67,16 @@ class App(tk.Tk):
 
     def _auto_setup(self):
         if AUDIO_OK:
-            idx, name = find_vbcable()
-            saved     = self.config.get("device")
-
+            saved = self.config.get("device")
             if saved is not None:
-                from src.audio import get_output_devices
                 for di, dn in get_output_devices():
                     if di == saved:
                         self.select_device(di, dn)
                         break
-            elif idx is not None:
-                self.select_device(idx, name)
+            else:
+                idx, name = find_vbcable()
+                if idx is not None:
+                    self.select_device(idx, name)
 
         self.home_page.refresh_status()
 
@@ -84,7 +84,7 @@ class App(tk.Tk):
             self._restore_playlist()
 
         if self.config.get("first_run", True):
-            self.after(400, self._show_welcome)
+            self.after(200, self._show_welcome)
             self.config["first_run"] = False
             self.save_config()
 
@@ -102,9 +102,11 @@ class App(tk.Tk):
 
         for w in self.home_page.resume_frame.winfo_children():
             w.destroy()
-        make_button(self.home_page.resume_frame, "Resume Last Session",
-                    self.play_current, COLORS["card2"], COLORS["text"],
-                    padx=8, pady=4).pack()
+        make_button(
+            self.home_page.resume_frame, "Resume Last Session",
+            self.play_current, COLORS["card2"], COLORS["text"],
+            padx=8, pady=4
+        ).pack()
 
     def _show_welcome(self):
         dlg = tk.Toplevel(self)
@@ -163,7 +165,7 @@ class App(tk.Tk):
         make_button(dlg, "Let's Go", dlg.destroy,
                     COLORS["green"], COLORS["white"], padx=28, pady=11).pack(pady=24)
 
-    # ── UI Construction ───────────────────────────────────────────────────────
+    # ── UI Construction ──────────────────────────────────────────────────────
 
     def _build_ui(self):
         self._build_topbar()
@@ -187,7 +189,7 @@ class App(tk.Tk):
                  font=FONTS["small"], fg=COLORS["muted"],
                  bg=COLORS["sidebar"]).pack(anchor="w")
 
-        self._status_var = tk.StringVar(value="Starting...")
+        self._status_var = tk.StringVar(value="Ready")
         tk.Label(bar, textvariable=self._status_var,
                  font=FONTS["small"], fg=COLORS["muted"],
                  bg=COLORS["sidebar"]).pack(side="right", padx=18)
@@ -217,7 +219,7 @@ class App(tk.Tk):
             self._add_nav_item(key, label)
 
         tk.Frame(sidebar, bg=COLORS["sidebar"]).pack(fill="both", expand=True)
-        tk.Label(sidebar, text="v3.0",
+        tk.Label(sidebar, text="v3.1",
                  font=FONTS["small"], fg=COLORS["border"],
                  bg=COLORS["sidebar"]).pack(pady=(0, 10))
 
@@ -239,10 +241,10 @@ class App(tk.Tk):
 
         for widget in (frame, inner, label):
             widget.bind("<Button-1>", lambda e, k=key: self._show_page(k))
-            widget.bind("<Enter>",    lambda e, k=key: self._nav_highlight(k, True))
-            widget.bind("<Leave>",    lambda e, k=key: self._nav_highlight(k, False))
+            widget.bind("<Enter>",    lambda e, k=key: self._nav_hover(k, True))
+            widget.bind("<Leave>",    lambda e, k=key: self._nav_hover(k, False))
 
-    def _nav_highlight(self, key, active):
+    def _nav_hover(self, key, active):
         if key == self._current_page:
             return
         label, _, frame, inner = self._nav_refs[key]
@@ -289,7 +291,7 @@ class App(tk.Tk):
         self.player.on_error = self._on_audio_error
         self.player.set_volume(self.config.get("volume", 80))
 
-    # ── Player Actions ────────────────────────────────────────────────────────
+    # ── Player Actions ───────────────────────────────────────────────────────
 
     def play_current(self):
         if not AUDIO_OK:
@@ -311,7 +313,7 @@ class App(tk.Tk):
             messagebox.showinfo("No Files", "Add audio files first (Step 1).")
             return
 
-        sel = box.curselection()
+        sel       = box.curselection()
         idx_track = sel[0] if sel else 0
         box.selection_set(idx_track)
         path = box.get(idx_track)
@@ -350,7 +352,7 @@ class App(tk.Tk):
         self.after(0, lambda: messagebox.showerror("Audio Error", msg))
         self.after(0, lambda: self.set_status("Audio error"))
 
-    # ── Tick Loop ─────────────────────────────────────────────────────────────
+    # ── Tick Loop ────────────────────────────────────────────────────────────
 
     def _tick(self):
         self.home_page.draw_progress()
@@ -363,9 +365,12 @@ class App(tk.Tk):
         if hasattr(self, "playlist_page"):
             self.playlist_page.on_tick(playing, paused, name)
 
-        self.after(150, self._tick)
+        self.after(TICK_MS, self._tick)
 
     def destroy(self):
+        self.player.stop()
+        self.vcam.stop()
+        super().destroy()    def destroy(self):
         self.player.stop()
         self.vcam.stop()
         super().destroy()
