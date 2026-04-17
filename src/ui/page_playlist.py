@@ -10,6 +10,7 @@ class PlaylistPage(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLORS["bg"])
         self.app = app
+        self._last_tick_state = None
         self._build()
 
     def _build(self):
@@ -54,9 +55,9 @@ class PlaylistPage(tk.Frame):
         toolbar = tk.Frame(inner, bg=COLORS["card"])
         toolbar.pack(fill="x", pady=(0, 8))
 
-        make_button(toolbar, "+ Add",     self._add_files,    COLORS["accent"], COLORS["white"]).pack(side="left", padx=(0, 4))
-        make_button(toolbar, "Remove",    self._remove_file,  COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
-        make_button(toolbar, "Clear All", self._clear_list,   COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
+        make_button(toolbar, "+ Add",     self._add_files,   COLORS["accent"], COLORS["white"]).pack(side="left", padx=(0, 4))
+        make_button(toolbar, "Remove",    self._remove_file, COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
+        make_button(toolbar, "Clear All", self._clear_list,  COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
 
         self.loop_var = tk.BooleanVar()
         tk.Checkbutton(toolbar, text="Loop", variable=self.loop_var,
@@ -88,9 +89,9 @@ class PlaylistPage(tk.Frame):
         ctrl = tk.Frame(inner, bg=COLORS["card"])
         ctrl.pack(fill="x", pady=(0, 6))
 
-        make_button(ctrl, "Play",  self._play_selected,     COLORS["green"],  COLORS["white"]).pack(side="left", padx=(0, 4))
-        make_button(ctrl, "Pause", self.app.toggle_pause,   COLORS["yellow"], "#0d0d0d").pack(side="left", padx=4)
-        make_button(ctrl, "Stop",  self.app.stop_audio,     COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
+        make_button(ctrl, "Play",  self._play_selected,    COLORS["green"],  COLORS["white"]).pack(side="left", padx=(0, 4))
+        make_button(ctrl, "Pause", self.app.toggle_pause,  COLORS["yellow"], "#0d0d0d").pack(side="left", padx=4)
+        make_button(ctrl, "Stop",  self.app.stop_audio,    COLORS["red"],    COLORS["white"]).pack(side="left", padx=4)
 
         self.now_label = make_label(inner, "Stopped", fg=COLORS["muted"], font=FONTS["small"])
         self.now_label.pack(anchor="w")
@@ -181,9 +182,16 @@ class PlaylistPage(tk.Frame):
             self.app.home_page.update_step1_label()
 
     def on_tick(self, playing, paused, name):
+        state = (playing, paused, name)
+        if state == self._last_tick_state:
+            return
+        self._last_tick_state = state
+
         if playing:
-            state = "Paused" if paused else "Playing"
-            fg    = COLORS["yellow"] if paused else COLORS["green"]
-            self.now_label.config(text=f"{state}:  {name}", fg=fg)
+            label_text = f"{'Paused' if paused else 'Playing'}:  {name}"
+            fg         = COLORS["yellow"] if paused else COLORS["green"]
         else:
-            self.now_label.config(text="Stopped", fg=COLORS["muted"])
+            label_text = "Stopped"
+            fg         = COLORS["muted"]
+
+        self.now_label.config(text=label_text, fg=fg)
