@@ -17,10 +17,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()        print("Run:  pip install sounddevice soundfile numpy")
+    main()
 
-    root = tk.Tk()
-    root.withdraw()
-
-    IntroScreen(on_done=lambda: (root.destroy(), launch()))
-    root.mainloop()
