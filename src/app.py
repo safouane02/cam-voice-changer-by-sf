@@ -370,7 +370,4 @@ class App(tk.Tk):
     def destroy(self):
         self.player.stop()
         self.vcam.stop()
-        super().destroy()    def destroy(self):
-        self.player.stop()
-        self.vcam.stop()
         super().destroy()
