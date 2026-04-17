@@ -62,8 +62,9 @@ class AudioPlayer:
         self.volume      = 0.8
         self.current     = ""
 
-        self._stop_event  = threading.Event()
-        self._start_time  = 0.0
+        self._stop_event = threading.Event()
+        self._seek_pos   = None
+        self._seek_lock  = threading.Lock()
 
         self.on_done  = None
         self.on_tick  = None
@@ -71,10 +72,11 @@ class AudioPlayer:
 
     def play(self, filepath, start_time=0.0):
         self.stop()
-        time.sleep(0.08)
+        time.sleep(0.05)
         self._stop_event.clear()
-        self.current     = filepath
-        self._start_time = max(0.0, float(start_time))
+        self.current = filepath
+        with self._seek_lock:
+            self._seek_pos = max(0.0, float(start_time))
         threading.Thread(target=self._playback_loop, args=(filepath,), daemon=True).start()
 
     def _playback_loop(self, filepath):
@@ -90,7 +92,10 @@ class AudioPlayer:
         while True:
             self.playing = True
             try:
-                self._stream_audio(wav_path, n_channels, sample_rate)
+                with self._seek_lock:
+                    start = self._seek_pos or 0.0
+                    self._seek_pos = None
+                self._stream_audio(wav_path, n_channels, sample_rate, start)
             except Exception as e:
                 self.playing = False
                 if self.on_error:
@@ -106,32 +111,31 @@ class AudioPlayer:
         if self.on_done:
             self.on_done()
 
-    def _stream_audio(self, wav_path, n_channels, target_sr):
+    def _stream_audio(self, wav_path, n_channels, target_sr, start_time=0.0):
         data, file_sr = sf.read(wav_path, dtype="float32", always_2d=True)
 
-        if data.shape[1] == 1:
-            mono = data[:, 0]
-        else:
-            mono = data[:, :2].mean(axis=1)
+        mono = data[:, 0] if data.shape[1] == 1 else data[:, :2].mean(axis=1)
 
         if file_sr != target_sr:
-            n    = int(len(mono) * target_sr / file_sr)
-            xold = np.linspace(0, 1, len(mono))
-            xnew = np.linspace(0, 1, n)
-            mono = np.interp(xnew, xold, mono).astype("float32")
+            ratio = target_sr / file_sr
+            n     = int(len(mono) * ratio)
+            mono  = np.interp(
+                np.linspace(0, 1, n),
+                np.linspace(0, 1, len(mono)),
+                mono
+            ).astype("float32")
 
         total     = len(mono)
-        start_idx = int(round(self._start_time * target_sr))
-        start_idx = max(0, min(start_idx, total - 1)) if total > 0 else 0
+        start_idx = max(0, min(int(start_time * target_sr), total - 1)) if total > 0 else 0
 
-        frame       = np.zeros((total, n_channels), dtype="float32")
-        frame[:, 0] = mono
+        frame      = np.empty((total, n_channels), dtype="float32")
+        frame[:,0] = mono
         if n_channels >= 2:
-            frame[:, 1] = mono
+            frame[:,1] = mono
 
-        pos       = start_idx
-        chunk     = 1024
-        stream    = sd.OutputStream(
+        chunk  = 2048
+        pos    = start_idx
+        stream = sd.OutputStream(
             samplerate=target_sr, channels=n_channels,
             dtype="float32", device=self.device_idx,
             blocksize=chunk, latency="low"
@@ -142,10 +146,16 @@ class AudioPlayer:
             while pos < total:
                 if self._stop_event.is_set():
                     break
+
                 while self.paused:
-                    time.sleep(0.05)
+                    time.sleep(0.02)
                     if self._stop_event.is_set():
                         break
+
+                with self._seek_lock:
+                    if self._seek_pos is not None:
+                        pos = max(0, min(int(self._seek_pos * target_sr), total - 1))
+                        self._seek_pos = None
 
                 block = frame[pos:pos + chunk].copy()
                 if len(block) < chunk:
@@ -173,10 +183,20 @@ class AudioPlayer:
         except Exception as e:
             return None, str(e)
 
+    def seek(self, seconds):
+        with self._seek_lock:
+            self._seek_pos = max(0.0, float(seconds))
+
     def stop(self):
         self._stop_event.set()
         self.playing = False
         self.paused  = False
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+
+    def set_volume(self, percent):
+        self.volume = max(0.0, min(2.0, percent / 100.0))        self.paused  = False
 
     def toggle_pause(self):
         self.paused = not self.paused
