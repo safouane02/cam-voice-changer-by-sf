@@ -1,24 +1,23 @@
 """
 VC Changer - Discord Audio & Virtual Camera Tool
-Author: safouane02
+github.com/safouane02
 """
 
-import tkinter as tk
-
 from src.audio import AUDIO_OK
-from src.ui.splash import IntroScreen
 from src.app import App
 
 
-def launch():
+def main():
+    if not AUDIO_OK:
+        print("[warn] sounddevice / soundfile / numpy not installed")
+        print("       pip install sounddevice soundfile numpy")
+
     app = App()
     app.mainloop()
 
 
 if __name__ == "__main__":
-    if not AUDIO_OK:
-        print("Missing audio libraries.")
-        print("Run:  pip install sounddevice soundfile numpy")
+    main()        print("Run:  pip install sounddevice soundfile numpy")
 
     root = tk.Tk()
     root.withdraw()
