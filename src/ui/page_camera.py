@@ -358,9 +358,4 @@ class CameraPage(tk.Frame):
     def _browse(self, var, filetypes):
         path = filedialog.askopenfilename(filetypes=filetypes)
         if path:
-            var.set(path)        return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
-
-    def _browse(self, var, filetypes):
-        path = filedialog.askopenfilename(filetypes=filetypes)
-        if path:
             var.set(path)
