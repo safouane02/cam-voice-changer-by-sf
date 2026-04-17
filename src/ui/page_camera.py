@@ -13,10 +13,9 @@ from src.vcam import CV2_OK, VCAM_OK
 class CameraPage(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLORS["bg"])
-        self.app             = app
-        self._vid_audio_tmp  = None
-        self._is_dragging    = False
-        self._pending_seek   = None
+        self.app            = app
+        self._vid_audio_tmp = None
+        self._is_dragging   = False
         self._build()
 
     def _build(self):
@@ -78,23 +77,23 @@ class CameraPage(tk.Frame):
         make_label(row, "Resolution", fg=COLORS["muted"], font=FONTS["small"]).pack(side="left")
         self.res_var = tk.StringVar(value="1280x720")
         res_menu = tk.OptionMenu(row, self.res_var, "640x480", "854x480", "1280x720", "1920x1080")
-        res_menu.config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
-                        relief="flat", highlightthickness=0, activebackground=COLORS["accent"])
-        res_menu["menu"].config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
-                                activebackground=COLORS["accent"])
+        self._style_menu(res_menu)
         res_menu.pack(side="left", padx=10)
 
         make_label(row, "FPS", fg=COLORS["muted"], font=FONTS["small"]).pack(side="left", padx=(14, 0))
         self.fps_var = tk.StringVar(value="30")
         fps_menu = tk.OptionMenu(row, self.fps_var, "15", "24", "30", "60")
-        fps_menu.config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
-                        relief="flat", highlightthickness=0, activebackground=COLORS["accent"])
-        fps_menu["menu"].config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
-                                activebackground=COLORS["accent"])
+        self._style_menu(fps_menu)
         fps_menu.pack(side="left", padx=8)
 
+    def _style_menu(self, menu):
+        menu.config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
+                    relief="flat", highlightthickness=0, activebackground=COLORS["accent"])
+        menu["menu"].config(bg=COLORS["border"], fg=COLORS["text"], font=FONTS["small"],
+                            activebackground=COLORS["accent"])
+
     def _build_timeline(self):
-        self.seek_var  = tk.DoubleVar(value=0.0)
+        self.seek_var   = tk.DoubleVar(value=0.0)
         self.time_label = make_label(self, "00:00 / 00:00", fg=COLORS["muted"], font=FONTS["small"])
         self.time_label.pack(anchor="w", pady=(0, 4), padx=14)
 
@@ -105,8 +104,8 @@ class CameraPage(tk.Frame):
             bg=COLORS["card"], fg=COLORS["text"], troughcolor=COLORS["border"],
             length=660, command=self._on_seek_drag
         )
-        self.seek_scale.bind("<ButtonPress-1>",   lambda e: setattr(self, "_is_dragging", True))
-        self.seek_scale.bind("<ButtonRelease-1>",  self._on_seek_release)
+        self.seek_scale.bind("<ButtonPress-1>",  lambda e: setattr(self, "_is_dragging", True))
+        self.seek_scale.bind("<ButtonRelease-1>", self._on_seek_release)
         self.seek_scale.config(state="disabled")
         self.seek_scale.pack(fill="x", padx=14, pady=(0, 10))
 
@@ -126,8 +125,7 @@ class CameraPage(tk.Frame):
                        fg=color, font=FONTS["mono"]).pack(side="left", padx=(0, 18))
 
     def _build_color_options(self):
-        for w in self.options_frame.winfo_children():
-            w.destroy()
+        self._clear_options()
         make_label(self.options_frame, "Color:", fg=COLORS["muted"],
                    font=FONTS["small"]).pack(side="left", padx=(0, 10))
         for hex_c, rgb in [
@@ -144,8 +142,7 @@ class CameraPage(tk.Frame):
             ).pack(side="left", padx=2, pady=2)
 
     def _build_image_options(self):
-        for w in self.options_frame.winfo_children():
-            w.destroy()
+        self._clear_options()
         self.img_var = tk.StringVar()
         make_label(self.options_frame, "Image:", fg=COLORS["muted"], font=FONTS["small"]).pack(side="left")
         tk.Entry(self.options_frame, textvariable=self.img_var, bg=COLORS["bg"],
@@ -156,8 +153,7 @@ class CameraPage(tk.Frame):
                     COLORS["accent"], COLORS["white"]).pack(side="left")
 
     def _build_video_options(self):
-        for w in self.options_frame.winfo_children():
-            w.destroy()
+        self._clear_options()
         self.vid_var = tk.StringVar()
         make_label(self.options_frame, "Video:", fg=COLORS["muted"], font=FONTS["small"]).pack(side="left")
         tk.Entry(self.options_frame, textvariable=self.vid_var, bg=COLORS["bg"],
@@ -168,20 +164,22 @@ class CameraPage(tk.Frame):
                     COLORS["accent"], COLORS["white"]).pack(side="left")
 
     def _build_screen_options(self):
-        for w in self.options_frame.winfo_children():
-            w.destroy()
+        self._clear_options()
         make_label(self.options_frame, "Captures full screen  (pip install mss)",
                    fg=COLORS["muted"], font=FONTS["small"]).pack(side="left")
 
+    def _clear_options(self):
+        for w in self.options_frame.winfo_children():
+            w.destroy()
+
     def _on_source_change(self):
-        src = self.source_var.get()
         builders = {
             "color":  self._build_color_options,
             "image":  self._build_image_options,
             "video":  self._build_video_options,
             "screen": self._build_screen_options,
         }
-        builders.get(src, self._build_color_options)()
+        builders.get(self.source_var.get(), self._build_color_options)()
 
     def _start_camera(self):
         if not (CV2_OK and VCAM_OK):
@@ -190,7 +188,7 @@ class CameraPage(tk.Frame):
 
         src  = self.source_var.get()
         vcam = self.app.vcam
-        vcam.source      = src
+        vcam.source       = src
         vcam.video_frame  = 0
         vcam.total_frames = 0
         vcam._seek_to     = None
@@ -203,9 +201,9 @@ class CameraPage(tk.Frame):
         w, h = self.res_var.get().split("x")
         vcam.width  = int(w)
         vcam.height = int(h)
-        vcam.fps    = self._detect_fps(src, vcam.video_path)
+        vcam.fps    = self._detect_fps(src, getattr(vcam, "video_path", ""))
 
-        def _on_status(state, msg):
+        def on_vcam_status(state, msg):
             if state == "ok":
                 self.status_label.config(text="Running", fg=COLORS["green"])
                 self.device_label.config(text=f"  {msg}")
@@ -215,7 +213,7 @@ class CameraPage(tk.Frame):
                 self.device_label.config(text=f"  {msg}")
                 self.after(0, lambda: messagebox.showerror("Camera Error", msg))
 
-        vcam.on_status = _on_status
+        vcam.on_status = on_vcam_status
 
         if src == "video" and hasattr(self, "vid_var") and self.vid_var.get() and AUDIO_OK:
             vid_path = self.vid_var.get()
@@ -252,12 +250,12 @@ class CameraPage(tk.Frame):
         self.status_label.config(text="Extracting audio...", fg=COLORS["yellow"])
         self.update_idletasks()
 
-        def _extract_thread():
+        def extract_thread():
             wav, err = self._extract_audio(vid_path)
             self._vid_audio_tmp = wav
             self.after(0, lambda: self._launch_camera(audio_wav=wav, audio_err=err))
 
-        threading.Thread(target=_extract_thread, daemon=True).start()
+        threading.Thread(target=extract_thread, daemon=True).start()
 
     def _launch_camera(self, audio_wav=None, audio_err=None):
         if audio_wav:
@@ -321,18 +319,17 @@ class CameraPage(tk.Frame):
 
     def _on_seek_release(self, event=None):
         self._is_dragging = False
-        if self._pending_seek is None:
+        pending = getattr(self, "_pending_seek", None)
+        if pending is None:
             return
-
-        sec = self._pending_seek
         self._pending_seek = None
 
-        self.app.vcam.seek(int(sec * self.app.vcam.fps))
+        self.app.vcam.seek(int(pending * self.app.vcam.fps))
 
         if self._vid_audio_tmp:
             self.app.player.stop()
             self.app.player.looping = True
-            self.app.player.play(self._vid_audio_tmp, start_time=sec)
+            self.app.player.play(self._vid_audio_tmp, start_time=pending)
 
     def _update_timeline(self):
         vcam = self.app.vcam
@@ -353,10 +350,15 @@ class CameraPage(tk.Frame):
 
     def _fmt_time(self, seconds):
         try:
-            seconds = max(0.0, float(seconds))
+            s = max(0.0, float(seconds))
         except Exception:
             return "00:00"
-        return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
+        return f"{int(s // 60):02d}:{int(s % 60):02d}"
+
+    def _browse(self, var, filetypes):
+        path = filedialog.askopenfilename(filetypes=filetypes)
+        if path:
+            var.set(path)        return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
 
     def _browse(self, var, filetypes):
         path = filedialog.askopenfilename(filetypes=filetypes)
