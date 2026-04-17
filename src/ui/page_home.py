@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 import webbrowser
 
 from src.theme import COLORS, FONTS, make_button, make_card, make_label, make_status_dot
@@ -13,6 +13,7 @@ class HomePage(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLORS["bg"])
         self.app = app
+        self._last_tick_state = None
         self._build()
 
     def _build(self):
@@ -36,7 +37,7 @@ class HomePage(tk.Frame):
         self.camera_dot = make_status_dot(inner, COLORS["muted"])
         self.audio_dot  = make_status_dot(inner, COLORS["muted"])
 
-        for label, dot_widget in [
+        for label_text, dot_widget in [
             ("VB-Cable  (Audio Bridge)", self.cable_dot),
             ("Virtual Camera",           self.camera_dot),
             ("Audio Backend",            self.audio_dot),
@@ -45,12 +46,12 @@ class HomePage(tk.Frame):
             row.pack(fill="x", pady=4)
             dot_widget.pack(in_=row, side="left", pady=4)
             dot_widget.config(bg=COLORS["card"])
-            tk.Label(row, text=label, font=FONTS["body"],
+            tk.Label(row, text=label_text, font=FONTS["body"],
                      fg=COLORS["text"], bg=COLORS["card"]).pack(side="left", padx=10)
 
-        self.cable_label   = make_label(inner, "", fg=COLORS["muted"], font=FONTS["small"])
+        self.cable_label  = make_label(inner, "", fg=COLORS["muted"], font=FONTS["small"])
         self.cable_label.pack(anchor="w", pady=(6, 0))
-        self.device_label  = make_label(inner, "", fg=COLORS["muted"], font=FONTS["small"])
+        self.device_label = make_label(inner, "", fg=COLORS["muted"], font=FONTS["small"])
         self.device_label.pack(anchor="w")
 
         copy_row = tk.Frame(inner, bg=COLORS["card"])
@@ -63,9 +64,7 @@ class HomePage(tk.Frame):
         card, inner = make_card(self, "Quick Start  —  3 Steps")
         card.pack(fill="both", expand=True, pady=(0, 12))
 
-        s1 = tk.Frame(inner, bg=COLORS["step_bg"],
-                      highlightbackground=COLORS["border"], highlightthickness=1)
-        s1.pack(fill="x", pady=5, ipady=10, ipadx=10)
+        s1 = self._make_step_frame(inner)
         tk.Label(s1, text="1", font=("Segoe UI Semibold", 22),
                  fg=COLORS["accent"], bg=COLORS["step_bg"], width=3).pack(side="left")
         info1 = tk.Frame(s1, bg=COLORS["step_bg"])
@@ -88,9 +87,7 @@ class HomePage(tk.Frame):
         self.progress_canvas.pack(fill="x", pady=(0, 4))
         self.progress_canvas.bind("<Configure>", lambda e: self.draw_progress())
 
-        s2 = tk.Frame(inner, bg=COLORS["step_bg"],
-                      highlightbackground=COLORS["border"], highlightthickness=1)
-        s2.pack(fill="x", pady=5, ipady=10, ipadx=10)
+        s2 = self._make_step_frame(inner)
         tk.Label(s2, text="2", font=("Segoe UI Semibold", 22),
                  fg=COLORS["green"], bg=COLORS["step_bg"], width=3).pack(side="left")
         info2 = tk.Frame(s2, bg=COLORS["step_bg"])
@@ -111,9 +108,7 @@ class HomePage(tk.Frame):
         make_button(ctrl2, "Stop", self.app.stop_audio,
                     COLORS["red"], COLORS["white"], padx=10, pady=7).pack(side="left", padx=2)
 
-        s3 = tk.Frame(inner, bg=COLORS["step_bg"],
-                      highlightbackground=COLORS["border"], highlightthickness=1)
-        s3.pack(fill="x", pady=5, ipady=10, ipadx=10)
+        s3 = self._make_step_frame(inner)
         tk.Label(s3, text="3", font=("Segoe UI Semibold", 22),
                  fg=COLORS["orange"], bg=COLORS["step_bg"], width=3).pack(side="left")
         info3 = tk.Frame(s3, bg=COLORS["step_bg"])
@@ -126,6 +121,12 @@ class HomePage(tk.Frame):
         make_button(s3, "Open Discord",
                     lambda: webbrowser.open("discord://"),
                     COLORS["accent"], COLORS["white"]).pack(side="right", padx=12)
+
+    def _make_step_frame(self, parent):
+        frame = tk.Frame(parent, bg=COLORS["step_bg"],
+                          highlightbackground=COLORS["border"], highlightthickness=1)
+        frame.pack(fill="x", pady=5, ipady=10, ipadx=10)
+        return frame
 
     def _build_volume_card(self):
         card, inner = make_card(self, "Volume")
@@ -168,13 +169,13 @@ class HomePage(tk.Frame):
         idx, name = find_vbcable() if AUDIO_OK else (None, None)
         has_cable = idx is not None
 
-        def _redraw_dot(dot_widget, color):
-            dot_widget.delete("all")
-            dot_widget.create_oval(1, 1, 9, 9, fill=color, outline="")
+        def redraw_dot(dot, color):
+            dot.delete("all")
+            dot.create_oval(1, 1, 9, 9, fill=color, outline="")
 
-        _redraw_dot(self.cable_dot,  COLORS["green"] if has_cable else COLORS["red"])
-        _redraw_dot(self.audio_dot,  COLORS["green"] if AUDIO_OK else COLORS["red"])
-        _redraw_dot(self.camera_dot, COLORS["green"] if (CV2_OK and VCAM_OK) else COLORS["yellow"])
+        redraw_dot(self.cable_dot,  COLORS["green"] if has_cable else COLORS["red"])
+        redraw_dot(self.audio_dot,  COLORS["green"] if AUDIO_OK   else COLORS["red"])
+        redraw_dot(self.camera_dot, COLORS["green"] if (CV2_OK and VCAM_OK) else COLORS["yellow"])
 
         if has_cable and self.app.player.device_idx is not None:
             self.cable_label.config(
@@ -200,19 +201,26 @@ class HomePage(tk.Frame):
 
     def draw_progress(self):
         c = self.progress_canvas
-        c.delete("all")
         w = c.winfo_width()
         if w <= 1:
             return
+        c.delete("all")
         c.create_rectangle(0, 0, w, 4, fill=COLORS["border"], outline="")
         filled = int(w * self.app.progress)
         if filled > 0:
             c.create_rectangle(0, 0, filled, 4, fill=COLORS["accent"], outline="")
 
     def on_tick(self, playing, paused, name):
+        state = (playing, paused, name)
+        if state == self._last_tick_state:
+            return
+        self._last_tick_state = state
+
         if playing:
-            state = "Paused" if paused else "Playing"
-            fg    = COLORS["yellow"] if paused else COLORS["green"]
-            self.step2_label.config(text=f"{state}:  {name}", fg=fg)
+            label_text = f"{'Paused' if paused else 'Playing'}:  {name}"
+            fg         = COLORS["yellow"] if paused else COLORS["green"]
         else:
-            self.step2_label.config(text="Stopped", fg=COLORS["muted"])
+            label_text = "Stopped"
+            fg         = COLORS["muted"]
+
+        self.step2_label.config(text=label_text, fg=fg)
